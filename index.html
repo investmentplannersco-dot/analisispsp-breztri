@@ -209,6 +209,30 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .grid { grid-template-columns: 1fr 1fr !important; }
   .chart { height: 260px !important; }
   .chart.tall { height: 300px !important; }
+
+  /* ----- Plotly SVG: forzar texto oscuro sobre fondo claro ----- */
+  /* Plotly inyecta fill/stroke como atributos inline en el SVG;
+     solo fill/stroke en el selector SVG los sobreescribe */
+  .js-plotly-plot text,
+  .js-plotly-plot .xtick text,
+  .js-plotly-plot .ytick text,
+  .js-plotly-plot .g-xtitle text,
+  .js-plotly-plot .g-ytitle text,
+  .js-plotly-plot .gtitle,
+  .js-plotly-plot .legendtext,
+  .js-plotly-plot .annotation-text { fill: #1a2040 !important; }
+
+  /* Líneas de grid y ejes */
+  .js-plotly-plot .gridlayer path,
+  .js-plotly-plot .zerolinelayer path { stroke: #c8cde0 !important; }
+  .js-plotly-plot .xlines-above path,
+  .js-plotly-plot .ylines-above path { stroke: #c8cde0 !important; }
+
+  /* Fondo del área de plot */
+  .js-plotly-plot .bg { fill: #f0f2f8 !important; }
+
+  /* Borde del plot */
+  .js-plotly-plot .bglayer rect { fill: #ffffff !important; }
 }
 </style>
 </head>
@@ -1024,8 +1048,12 @@ function relayoutForPrint(light){
   });
 }
 
-window.addEventListener('beforeprint', ()=> relayoutForPrint(true));
-window.addEventListener('afterprint',  ()=> relayoutForPrint(false));
+// beforeprint puede dispararse antes de que Plotly termine el relayout.
+// matchMedia es síncrono y también cubre Cmd+P en Safari/Firefox.
+const printMQ = window.matchMedia('print');
+printMQ.addEventListener('change', e => relayoutForPrint(e.matches));
+window.addEventListener('beforeprint', () => relayoutForPrint(true));
+window.addEventListener('afterprint',  () => relayoutForPrint(false));
 </script>
 </body>
 </html>

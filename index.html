@@ -989,6 +989,43 @@ function exportCSV(rows){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/* ============================ print: re-render Plotly con paleta clara ============================ */
+const PAL_PRINT = {
+  bg:'#ffffff', surface:'#f4f6fb', grid:'#d0d4e8', text:'#0d1120', dim:'#3a4060',
+  accent:'#0a7a6e', accent2:'#3a4fcc', warn:'#b06a00', danger:'#b8192e', good:'#0d6e44'
+};
+const COLORWAY_PRINT = [PAL_PRINT.accent, PAL_PRINT.accent2, PAL_PRINT.warn, PAL_PRINT.danger,
+  '#0d6e44','#6b3fcc','#cc5200','#0066aa','#aa2080','#4a5580'];
+
+const CHART_IDS = ['portfolio','reg','eps','estado','sun','heat','aging','load','trend'];
+
+function relayoutForPrint(light){
+  const p = light ? PAL_PRINT : PAL;
+  const cw = light ? COLORWAY_PRINT : COLORWAY;
+  const axisUpdate = { gridcolor:p.grid, zerolinecolor:p.grid, color:p.dim,
+    tickfont:{color:p.dim}, titlefont:{color:p.dim} };
+  CHART_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el || !el._fullLayout) return;
+    Plotly.relayout(id, {
+      paper_bgcolor: light ? '#ffffff' : 'transparent',
+      plot_bgcolor:  light ? '#f4f6fb' : 'transparent',
+      font:{ color: p.text },
+      colorway: cw,
+      'xaxis.gridcolor': p.grid, 'xaxis.zerolinecolor': p.grid,
+      'xaxis.color': p.dim, 'xaxis.tickfont.color': p.dim,
+      'yaxis.gridcolor': p.grid, 'yaxis.zerolinecolor': p.grid,
+      'yaxis.color': p.dim, 'yaxis.tickfont.color': p.dim,
+      'yaxis2.color': p.dim, 'yaxis2.tickfont.color': p.dim,
+      'legend.font.color': p.dim,
+      'title.font.color': p.dim
+    });
+  });
+}
+
+window.addEventListener('beforeprint', ()=> relayoutForPrint(true));
+window.addEventListener('afterprint',  ()=> relayoutForPrint(false));
 </script>
 </body>
 </html>

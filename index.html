@@ -324,7 +324,7 @@ const HIST_KEY = 'bai_breztri_history_v1';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ============================ utilidades ============================ */
-function norm(s){ return (s===null||s===undefined) ? '' : s.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
+function norm(s){ return (s===null||s===undefined) ? '' : s.toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
 function fc(cols, terms){ return cols.find(c => terms.some(t => norm(c).includes(norm(t)))); }
 function canonKey(v){ const s = norm(v); return s===''? 'sin dato' : s; }
 function displayVal(v){ if(v===null||v===undefined||v==='') return 'Sin dato'; return v.toString().trim()||'Sin dato'; }
@@ -375,12 +375,12 @@ function animateValue(el, end, opts){
 
 /* ============================ estado global ============================ */
 const state = {
-  raw: [],            // todas las filas del archivo (todas las marcas)
-  cols: {},           // mapa de columnas detectadas
-  marcaGroups: [],    // grupos de marca disponibles en el archivo
-  selectedMarca: null,// key canónica seleccionada, o '__ALL__'
-  datasetFull: [],    // filas tras filtrar por marca (antes de filtros de clic)
-  filters: {},        // { campo: {key, label} }
+  raw: [],
+  cols: {},
+  marcaGroups: [],
+  selectedMarca: null,
+  datasetFull: [],
+  filters: {},
   showPiiCrit: false,
   showPiiTbl: false,
   fileName: ''
@@ -789,7 +789,7 @@ function renderSunburst(rows){
     const pt = d.points[0];
     if(pt.id==='root') return;
     if(pt.id.indexOf('>')===-1){ addFilter(c.tipoBarrera, pt.id.replace('T:',''), pt.label); }
-    else if(pt.id.endsWith('>M:otros')){ /* sin filtro: agregado de cola larga */ }
+    else if(pt.id.endsWith('>M:otros')){ /* sin filtro */ }
     else { addFilter(c.motivo, pt.id.split('>M:')[1], pt.label); }
   });
   document.getElementById('sunCap').textContent = 'Anillo interno: tipo de barrera. Anillo externo: motivo específico. Clic para filtrar.';
@@ -981,7 +981,7 @@ function exportCSV(rows){
   if(!rows.length) return;
   const ws = XLSX.utils.json_to_sheet(rows);
   const csv = XLSX.utils.sheet_to_csv(ws);
-  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const marcaLabel = state.selectedMarca==='__ALL__' ? 'todas' : state.selectedMarca.replace(/\s+/g,'_');
@@ -1003,8 +1003,6 @@ const CHART_IDS = ['portfolio','reg','eps','estado','sun','heat','aging','load',
 function relayoutForPrint(light){
   const p = light ? PAL_PRINT : PAL;
   const cw = light ? COLORWAY_PRINT : COLORWAY;
-  const axisUpdate = { gridcolor:p.grid, zerolinecolor:p.grid, color:p.dim,
-    tickfont:{color:p.dim}, titlefont:{color:p.dim} };
   CHART_IDS.forEach(id=>{
     const el = document.getElementById(id);
     if(!el || !el._fullLayout) return;

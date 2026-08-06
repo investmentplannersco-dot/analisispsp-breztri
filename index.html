@@ -211,16 +211,20 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .chart.tall { height: 300px !important; }
 
   /* ----- Plotly SVG: forzar texto oscuro sobre fondo claro ----- */
-  /* Plotly inyecta fill/stroke como atributos inline en el SVG;
-     solo fill/stroke en el selector SVG los sobreescribe */
+  /* Plotly inyecta fill en <text> y en <tspan> hijos; ambos deben cubrirse */
   .js-plotly-plot text,
+  .js-plotly-plot tspan,
   .js-plotly-plot .xtick text,
+  .js-plotly-plot .xtick tspan,
   .js-plotly-plot .ytick text,
+  .js-plotly-plot .ytick tspan,
   .js-plotly-plot .g-xtitle text,
   .js-plotly-plot .g-ytitle text,
   .js-plotly-plot .gtitle,
   .js-plotly-plot .legendtext,
-  .js-plotly-plot .annotation-text { fill: #1a2040 !important; }
+  .js-plotly-plot .legendtext tspan,
+  .js-plotly-plot .annotation-text,
+  .js-plotly-plot .annotation-text tspan { fill: #1a2040 !important; color: #1a2040 !important; }
 
   /* Líneas de grid y ejes */
   .js-plotly-plot .gridlayer path,
@@ -1027,12 +1031,10 @@ const CHART_IDS = ['portfolio','reg','eps','estado','sun','heat','aging','load',
 function relayoutForPrint(light){
   const p = light ? PAL_PRINT : PAL;
   const cw = light ? COLORWAY_PRINT : COLORWAY;
-  const axisUpdate = { gridcolor:p.grid, zerolinecolor:p.grid, color:p.dim,
-    tickfont:{color:p.dim}, titlefont:{color:p.dim} };
-  CHART_IDS.forEach(id=>{
+  return Promise.all(CHART_IDS.map(id=>{
     const el = document.getElementById(id);
-    if(!el || !el._fullLayout) return;
-    Plotly.relayout(id, {
+    if(!el || !el._fullLayout) return Promise.resolve();
+    return Plotly.relayout(id, {
       paper_bgcolor: light ? '#ffffff' : 'transparent',
       plot_bgcolor:  light ? '#f4f6fb' : 'transparent',
       font:{ color: p.text },
@@ -1045,11 +1047,20 @@ function relayoutForPrint(light){
       'legend.font.color': p.dim,
       'title.font.color': p.dim
     });
-  });
+  }));
 }
 
-// beforeprint puede dispararse antes de que Plotly termine el relayout.
-// matchMedia es síncrono y también cubre Cmd+P en Safari/Firefox.
+// Interceptar Cmd+P / Ctrl+P para esperar que Plotly termine antes de imprimir
+document.addEventListener('keydown', async e => {
+  if((e.ctrlKey || e.metaKey) && e.key === 'p'){
+    e.preventDefault();
+    await relayoutForPrint(true);
+    window.print();
+    relayoutForPrint(false);
+  }
+});
+
+// Botón de exportar también puede llamar a esto; matchMedia cubre otros casos
 const printMQ = window.matchMedia('print');
 printMQ.addEventListener('change', e => relayoutForPrint(e.matches));
 window.addEventListener('beforeprint', () => relayoutForPrint(true));

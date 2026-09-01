@@ -210,7 +210,21 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .chart { height: 260px !important; }
   .chart.tall { height: 300px !important; }
 
-  /* ----- Plotly SVG: respaldo CSS por si el parche JS no alcanza ----- */
+  /* ocultar secciones de graficos intermedios en PDF — solo resumen + detalle */
+  #portfolioSection,
+  #portfolioSection + .section-label,
+  #portfolioSection + .section-label + .grid,
+  #portfolioSection + .section-label + .grid + .section-label,
+  #portfolioSection + .section-label + .grid + .section-label + .grid,
+  #portfolioSection + .section-label + .grid + .section-label + .grid + .section-label,
+  #portfolioSection + .section-label + .grid + .section-label + .grid + .section-label + .grid,
+  #trendGrid, #trendGrid + .section-label { display: none !important; }
+
+  /* texto negro en toda la página impresa */
+  * { color: #000000 !important; }
+
+  /* ----- Plotly SVG: forzar texto oscuro sobre fondo claro ----- */
+  /* Plotly inyecta fill en <text> y en <tspan> hijos; ambos deben cubrirse */
   .js-plotly-plot text,
   .js-plotly-plot tspan,
   .js-plotly-plot .xtick text,
@@ -225,11 +239,16 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .js-plotly-plot .annotation-text,
   .js-plotly-plot .annotation-text tspan { fill: #1a2040 !important; color: #1a2040 !important; }
 
+  /* Líneas de grid y ejes */
   .js-plotly-plot .gridlayer path,
   .js-plotly-plot .zerolinelayer path { stroke: #c8cde0 !important; }
   .js-plotly-plot .xlines-above path,
   .js-plotly-plot .ylines-above path { stroke: #c8cde0 !important; }
+
+  /* Fondo del área de plot */
   .js-plotly-plot .bg { fill: #f0f2f8 !important; }
+
+  /* Borde del plot */
   .js-plotly-plot .bglayer rect { fill: #ffffff !important; }
 }
 </style>
@@ -305,7 +324,7 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
     <div class="section-label"><span>Casos críticos a gestionar</span></div>
     <div class="card fade">
       <div class="toolbar">
-        <p class="cap" style="margin:0">Top 15 casos con mayor antigüedad sin resolver, según filtros activos</p>
+        <p class="cap" style="margin:0">Casos urgentes (&gt;20 días) — riesgo de suspensión, ordenados por antigüedad</p>
         <label class="toggle"><input type="checkbox" id="piiToggleCrit"/> Mostrar datos sensibles del paciente</label>
       </div>
       <div class="tablewrap"><div id="worklist"></div></div>
@@ -397,12 +416,12 @@ function animateValue(el, end, opts){
 
 /* ============================ estado global ============================ */
 const state = {
-  raw: [],
-  cols: {},
-  marcaGroups: [],
-  selectedMarca: null,
-  datasetFull: [],
-  filters: {},
+  raw: [],            // todas las filas del archivo (todas las marcas)
+  cols: {},           // mapa de columnas detectadas
+  marcaGroups: [],    // grupos de marca disponibles en el archivo
+  selectedMarca: null,// key canónica seleccionada, o '__ALL__'
+  datasetFull: [],    // filas tras filtrar por marca (antes de filtros de clic)
+  filters: {},        // { campo: {key, label} }
   showPiiCrit: false,
   showPiiTbl: false,
   fileName: ''
@@ -584,7 +603,7 @@ function computeStats(rows){
   const susp = c.estadoPaciente ? rows.filter(r=>canonKey(r[c.estadoPaciente])==='suspendido').length : 0;
   const diasArr = c.dias ? rows.map(r=>Number(r[c.dias])).filter(d=>isFinite(d)) : [];
   const avgDias = diasArr.length ? diasArr.reduce((a,b)=>a+b,0)/diasArr.length : 0;
-  const criticos = diasArr.filter(d=>d>30).length;
+  const criticos = diasArr.filter(d=>d>20).length;
   const epsCount = c.eps ? new Set(rows.map(r=>canonKey(r[c.eps]))).size : 0;
   const regionCount = c.region ? new Set(rows.map(r=>canonKey(r[c.region]))).size : 0;
   return {
@@ -616,7 +635,7 @@ function generateInsights(rows){
 
   const alerts = [];
   if(c.estadoPaciente && st.pctSuspendido>35) alerts.push({level:'danger', text:`${fmtPct(st.pctSuspendido)} de los pacientes están sin tratamiento activo — riesgo de discontinuación permanente.`});
-  if(c.dias && st.criticos>0) alerts.push({level:'danger', text:`${fmtInt(st.criticos)} casos superan 30 días en barrera sin resolver (${fmtPct(st.pctCriticos)} del total filtrado).`});
+  if(c.dias && st.criticos>0) alerts.push({level:'danger', text:`${fmtInt(st.criticos)} casos superan 20 días en barrera — riesgo de suspensión (${fmtPct(st.pctCriticos)} del total filtrado).`});
   if(topArea && st.casos) alerts.push({level:'warn', text:`El área "${escapeHtml(topArea.label)}" concentra la mayor carga operativa: ${fmtInt(topArea.count)} casos (${fmtPct(topArea.count/st.casos*100)}).`});
   if(topEps && st.casos && topEps.count/st.casos>0.15) alerts.push({level:'warn', text:`La aseguradora "${escapeHtml(topEps.label)}" representa ${fmtPct(topEps.count/st.casos*100)} de las barreras — posible cuello de botella institucional.`});
   if(topMotivo) alerts.push({level:'info', text:`Causa raíz prioritaria a intervenir: "${escapeHtml(topMotivo.label)}" (${fmtInt(topMotivo.count)} casos).`});
@@ -681,7 +700,7 @@ function renderKPIs(rows){
       delta: prev? deltaBadge(st.pctSuspendido, prev.pctSuspendido, true) : noHistMsg },
     { lbl:'Días promedio en barrera', val:st.avgDias, dec:0, color: severityColor(st.avgDias,10,25),
       delta: prev? deltaBadge(st.avgDias, prev.avgDias, true) : noHistMsg },
-    { lbl:'Casos críticos (>30 días)', val:st.criticos, dec:0, color: severityColor(st.criticos,0,5),
+    { lbl:'Casos urgentes (>20 días)', val:st.criticos, dec:0, color: severityColor(st.criticos,0,5),
       delta: prev? deltaBadge(st.criticos, prev.criticos, true) : noHistMsg },
     { lbl:'EPS impactadas', val:st.epsCount, dec:0, color:PAL.accent },
     { lbl:'Regiones impactadas', val:st.regionCount, dec:0, color:PAL.accent }
@@ -811,7 +830,7 @@ function renderSunburst(rows){
     const pt = d.points[0];
     if(pt.id==='root') return;
     if(pt.id.indexOf('>')===-1){ addFilter(c.tipoBarrera, pt.id.replace('T:',''), pt.label); }
-    else if(pt.id.endsWith('>M:otros')){ /* sin filtro */ }
+    else if(pt.id.endsWith('>M:otros')){ /* sin filtro: agregado de cola larga */ }
     else { addFilter(c.motivo, pt.id.split('>M:')[1], pt.label); }
   });
   document.getElementById('sunCap').textContent = 'Anillo interno: tipo de barrera. Anillo externo: motivo específico. Clic para filtrar.';
@@ -934,12 +953,14 @@ function renderWorklist(rows){
   document.getElementById('piiToggleCrit').onchange = e=>{ state.showPiiCrit = e.target.checked; renderWorklist(filteredRows()); };
   const showPii = state.showPiiCrit;
   if(!c.dias){ document.getElementById('worklist').innerHTML = '<div class="placeholder">No hay columna de días en barrera para priorizar.</div>'; return; }
-  const sorted = rows.slice().sort((a,b)=> (Number(b[c.dias])||0) - (Number(a[c.dias])||0)).slice(0,15);
-  if(!sorted.length){ document.getElementById('worklist').innerHTML = '<div class="placeholder">Sin casos para los filtros actuales.</div>'; return; }
+  const urgentes = rows.filter(r=> (Number(r[c.dias])||0) > 20);
+  const sorted = urgentes.slice().sort((a,b)=> (Number(b[c.dias])||0) - (Number(a[c.dias])||0)).slice(0,30);
+  if(!sorted.length){ document.getElementById('worklist').innerHTML = '<div class="placeholder">Sin casos urgentes (>20 días) para los filtros actuales.</div>'; return; }
   const cols = [
     c.marca && {h:'Marca', f:r=>displayVal(r[c.marca])},
     c.nombrePaciente && {h:'Paciente', f:r=> showPii? displayVal(r[c.nombrePaciente]) : maskName(r[c.nombrePaciente])},
     c.eps && {h:'EPS', f:r=>displayVal(r[c.eps])},
+    c.ips && {h:'Op. Logístico', f:r=>displayVal(r[c.ips])},
     c.region && {h:'Región', f:r=>displayVal(r[c.region])},
     c.motivo && {h:'Motivo', f:r=>displayVal(r[c.motivo])},
     c.area && {h:'Área', f:r=>displayVal(r[c.area])},
@@ -954,7 +975,7 @@ function renderWorklist(rows){
       const v = cl.f(r);
       if(cl.num){
         const d = Number(v)||0;
-        const sev = d>60 ? 'sev-high' : d>30 ? 'sev-mid' : '';
+        const sev = d>30 ? 'sev-high' : d>20 ? 'sev-mid' : '';
         html += `<td class="${sev}">${d}</td>`;
       } else if(cl.raw){
         html += `<td>${v}</td>`;
@@ -1044,7 +1065,7 @@ function relayoutForPrint(light){
   }));
 }
 
-// Parcheo directo del DOM SVG — sincronico, garantiza que el browser capture los colores correctos.
+// Parcheo directo del DOM SVG — síncrono, garantiza que el browser capture los colores correctos.
 // Plotly escribe fill como atributo SVG o como style inline; setProperty con 'important' sobreescribe ambos.
 function patchSvgTextColors(light) {
   const color = light ? '#1a2040' : null;
@@ -1078,10 +1099,10 @@ document.addEventListener('keydown', async e => {
   }
 });
 
-// Para impresion desde menu del browser: parche DOM sincrono en beforeprint
+// Para impresión desde menú del browser: parche DOM síncrono en beforeprint
 window.addEventListener('beforeprint', () => {
   relayoutForPrint(true);   // async — cambia fondos y ejes si alcanza
-  patchSvgTextColors(true); // sincrono — garantiza texto oscuro en la captura
+  patchSvgTextColors(true); // síncrono — garantiza texto oscuro en la captura
 });
 window.addEventListener('afterprint', () => {
   patchSvgTextColors(false);

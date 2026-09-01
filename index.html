@@ -210,8 +210,7 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .chart { height: 260px !important; }
   .chart.tall { height: 300px !important; }
 
-  /* ----- Plotly SVG: forzar texto oscuro sobre fondo claro ----- */
-  /* Plotly inyecta fill en <text> y en <tspan> hijos; ambos deben cubrirse */
+  /* ----- Plotly SVG: respaldo CSS por si el parche JS no alcanza ----- */
   .js-plotly-plot text,
   .js-plotly-plot tspan,
   .js-plotly-plot .xtick text,
@@ -226,16 +225,11 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .js-plotly-plot .annotation-text,
   .js-plotly-plot .annotation-text tspan { fill: #1a2040 !important; color: #1a2040 !important; }
 
-  /* Líneas de grid y ejes */
   .js-plotly-plot .gridlayer path,
   .js-plotly-plot .zerolinelayer path { stroke: #c8cde0 !important; }
   .js-plotly-plot .xlines-above path,
   .js-plotly-plot .ylines-above path { stroke: #c8cde0 !important; }
-
-  /* Fondo del área de plot */
   .js-plotly-plot .bg { fill: #f0f2f8 !important; }
-
-  /* Borde del plot */
   .js-plotly-plot .bglayer rect { fill: #ffffff !important; }
 }
 </style>
@@ -403,12 +397,12 @@ function animateValue(el, end, opts){
 
 /* ============================ estado global ============================ */
 const state = {
-  raw: [],            // todas las filas del archivo (todas las marcas)
-  cols: {},           // mapa de columnas detectadas
-  marcaGroups: [],    // grupos de marca disponibles en el archivo
-  selectedMarca: null,// key canónica seleccionada, o '__ALL__'
-  datasetFull: [],    // filas tras filtrar por marca (antes de filtros de clic)
-  filters: {},        // { campo: {key, label} }
+  raw: [],
+  cols: {},
+  marcaGroups: [],
+  selectedMarca: null,
+  datasetFull: [],
+  filters: {},
   showPiiCrit: false,
   showPiiTbl: false,
   fileName: ''
@@ -817,7 +811,7 @@ function renderSunburst(rows){
     const pt = d.points[0];
     if(pt.id==='root') return;
     if(pt.id.indexOf('>')===-1){ addFilter(c.tipoBarrera, pt.id.replace('T:',''), pt.label); }
-    else if(pt.id.endsWith('>M:otros')){ /* sin filtro: agregado de cola larga */ }
+    else if(pt.id.endsWith('>M:otros')){ /* sin filtro */ }
     else { addFilter(c.motivo, pt.id.split('>M:')[1], pt.label); }
   });
   document.getElementById('sunCap').textContent = 'Anillo interno: tipo de barrera. Anillo externo: motivo específico. Clic para filtrar.';
@@ -1050,21 +1044,49 @@ function relayoutForPrint(light){
   }));
 }
 
-// Interceptar Cmd+P / Ctrl+P para esperar que Plotly termine antes de imprimir
+// Parcheo directo del DOM SVG — sincronico, garantiza que el browser capture los colores correctos.
+// Plotly escribe fill como atributo SVG o como style inline; setProperty con 'important' sobreescribe ambos.
+function patchSvgTextColors(light) {
+  const color = light ? '#1a2040' : null;
+  document.querySelectorAll(
+    '.js-plotly-plot text, .js-plotly-plot tspan'
+  ).forEach(el => {
+    if (light) {
+      el.style.setProperty('fill', color, 'important');
+      el.style.setProperty('color', color, 'important');
+    } else {
+      el.style.removeProperty('fill');
+      el.style.removeProperty('color');
+    }
+  });
+  // Fondos de plot
+  document.querySelectorAll('.js-plotly-plot .bg, .js-plotly-plot .bglayer rect').forEach(el => {
+    if (light) el.style.setProperty('fill', '#f4f6fb', 'important');
+    else el.style.removeProperty('fill');
+  });
+}
+
+// Interceptar Cmd+P / Ctrl+P: primero relayout (cambia colores Plotly) y luego parche DOM
 document.addEventListener('keydown', async e => {
   if((e.ctrlKey || e.metaKey) && e.key === 'p'){
     e.preventDefault();
     await relayoutForPrint(true);
+    patchSvgTextColors(true);
     window.print();
+    patchSvgTextColors(false);
     relayoutForPrint(false);
   }
 });
 
-// Boton de exportar tambien puede llamar a esto; matchMedia cubre otros casos
-const printMQ = window.matchMedia('print');
-printMQ.addEventListener('change', e => relayoutForPrint(e.matches));
-window.addEventListener('beforeprint', () => relayoutForPrint(true));
-window.addEventListener('afterprint',  () => relayoutForPrint(false));
+// Para impresion desde menu del browser: parche DOM sincrono en beforeprint
+window.addEventListener('beforeprint', () => {
+  relayoutForPrint(true);   // async — cambia fondos y ejes si alcanza
+  patchSvgTextColors(true); // sincrono — garantiza texto oscuro en la captura
+});
+window.addEventListener('afterprint', () => {
+  patchSvgTextColors(false);
+  relayoutForPrint(false);
+});
 </script>
 </body>
 </html>

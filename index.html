@@ -1050,21 +1050,49 @@ function relayoutForPrint(light){
   }));
 }
 
-// Interceptar Cmd+P / Ctrl+P para esperar que Plotly termine antes de imprimir
+// Parcheo directo del DOM SVG — síncrono, garantiza que el browser capture los colores correctos.
+// Plotly escribe fill como atributo SVG o como style inline; setProperty con 'important' sobreescribe ambos.
+function patchSvgTextColors(light) {
+  const color = light ? '#1a2040' : null;
+  document.querySelectorAll(
+    '.js-plotly-plot text, .js-plotly-plot tspan'
+  ).forEach(el => {
+    if (light) {
+      el.style.setProperty('fill', color, 'important');
+      el.style.setProperty('color', color, 'important');
+    } else {
+      el.style.removeProperty('fill');
+      el.style.removeProperty('color');
+    }
+  });
+  // Fondos de plot
+  document.querySelectorAll('.js-plotly-plot .bg, .js-plotly-plot .bglayer rect').forEach(el => {
+    if (light) el.style.setProperty('fill', '#f4f6fb', 'important');
+    else el.style.removeProperty('fill');
+  });
+}
+
+// Interceptar Cmd+P / Ctrl+P: primero relayout (cambia colores Plotly) y luego parche DOM
 document.addEventListener('keydown', async e => {
   if((e.ctrlKey || e.metaKey) && e.key === 'p'){
     e.preventDefault();
     await relayoutForPrint(true);
+    patchSvgTextColors(true);
     window.print();
+    patchSvgTextColors(false);
     relayoutForPrint(false);
   }
 });
 
-// Botón de exportar también puede llamar a esto; matchMedia cubre otros casos
-const printMQ = window.matchMedia('print');
-printMQ.addEventListener('change', e => relayoutForPrint(e.matches));
-window.addEventListener('beforeprint', () => relayoutForPrint(true));
-window.addEventListener('afterprint',  () => relayoutForPrint(false));
+// Para impresión desde menú del browser: parche DOM síncrono en beforeprint
+window.addEventListener('beforeprint', () => {
+  relayoutForPrint(true);   // async — cambia fondos y ejes si alcanza
+  patchSvgTextColors(true); // síncrono — garantiza texto oscuro en la captura
+});
+window.addEventListener('afterprint', () => {
+  patchSvgTextColors(false);
+  relayoutForPrint(false);
+});
 </script>
 </body>
 </html>

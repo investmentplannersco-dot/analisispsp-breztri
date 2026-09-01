@@ -210,6 +210,19 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .chart { height: 260px !important; }
   .chart.tall { height: 300px !important; }
 
+  /* ocultar secciones de graficos intermedios en PDF — solo resumen + detalle */
+  #portfolioSection,
+  #portfolioSection + .section-label,
+  #portfolioSection + .section-label + .grid,
+  #portfolioSection + .section-label + .grid + .section-label,
+  #portfolioSection + .section-label + .grid + .section-label + .grid,
+  #portfolioSection + .section-label + .grid + .section-label + .grid + .section-label,
+  #portfolioSection + .section-label + .grid + .section-label + .grid + .section-label + .grid,
+  #trendGrid, #trendGrid + .section-label { display: none !important; }
+
+  /* texto negro en toda la página impresa */
+  * { color: #000000 !important; }
+
   /* ----- Plotly SVG: forzar texto oscuro sobre fondo claro ----- */
   /* Plotly inyecta fill en <text> y en <tspan> hijos; ambos deben cubrirse */
   .js-plotly-plot text,
@@ -311,7 +324,7 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
     <div class="section-label"><span>Casos críticos a gestionar</span></div>
     <div class="card fade">
       <div class="toolbar">
-        <p class="cap" style="margin:0">Top 15 casos con mayor antigüedad sin resolver, según filtros activos</p>
+        <p class="cap" style="margin:0">Casos urgentes (&gt;20 días) — riesgo de suspensión, ordenados por antigüedad</p>
         <label class="toggle"><input type="checkbox" id="piiToggleCrit"/> Mostrar datos sensibles del paciente</label>
       </div>
       <div class="tablewrap"><div id="worklist"></div></div>
@@ -590,7 +603,7 @@ function computeStats(rows){
   const susp = c.estadoPaciente ? rows.filter(r=>canonKey(r[c.estadoPaciente])==='suspendido').length : 0;
   const diasArr = c.dias ? rows.map(r=>Number(r[c.dias])).filter(d=>isFinite(d)) : [];
   const avgDias = diasArr.length ? diasArr.reduce((a,b)=>a+b,0)/diasArr.length : 0;
-  const criticos = diasArr.filter(d=>d>30).length;
+  const criticos = diasArr.filter(d=>d>20).length;
   const epsCount = c.eps ? new Set(rows.map(r=>canonKey(r[c.eps]))).size : 0;
   const regionCount = c.region ? new Set(rows.map(r=>canonKey(r[c.region]))).size : 0;
   return {
@@ -622,7 +635,7 @@ function generateInsights(rows){
 
   const alerts = [];
   if(c.estadoPaciente && st.pctSuspendido>35) alerts.push({level:'danger', text:`${fmtPct(st.pctSuspendido)} de los pacientes están sin tratamiento activo — riesgo de discontinuación permanente.`});
-  if(c.dias && st.criticos>0) alerts.push({level:'danger', text:`${fmtInt(st.criticos)} casos superan 30 días en barrera sin resolver (${fmtPct(st.pctCriticos)} del total filtrado).`});
+  if(c.dias && st.criticos>0) alerts.push({level:'danger', text:`${fmtInt(st.criticos)} casos superan 20 días en barrera — riesgo de suspensión (${fmtPct(st.pctCriticos)} del total filtrado).`});
   if(topArea && st.casos) alerts.push({level:'warn', text:`El área "${escapeHtml(topArea.label)}" concentra la mayor carga operativa: ${fmtInt(topArea.count)} casos (${fmtPct(topArea.count/st.casos*100)}).`});
   if(topEps && st.casos && topEps.count/st.casos>0.15) alerts.push({level:'warn', text:`La aseguradora "${escapeHtml(topEps.label)}" representa ${fmtPct(topEps.count/st.casos*100)} de las barreras — posible cuello de botella institucional.`});
   if(topMotivo) alerts.push({level:'info', text:`Causa raíz prioritaria a intervenir: "${escapeHtml(topMotivo.label)}" (${fmtInt(topMotivo.count)} casos).`});
@@ -687,7 +700,7 @@ function renderKPIs(rows){
       delta: prev? deltaBadge(st.pctSuspendido, prev.pctSuspendido, true) : noHistMsg },
     { lbl:'Días promedio en barrera', val:st.avgDias, dec:0, color: severityColor(st.avgDias,10,25),
       delta: prev? deltaBadge(st.avgDias, prev.avgDias, true) : noHistMsg },
-    { lbl:'Casos críticos (>30 días)', val:st.criticos, dec:0, color: severityColor(st.criticos,0,5),
+    { lbl:'Casos urgentes (>20 días)', val:st.criticos, dec:0, color: severityColor(st.criticos,0,5),
       delta: prev? deltaBadge(st.criticos, prev.criticos, true) : noHistMsg },
     { lbl:'EPS impactadas', val:st.epsCount, dec:0, color:PAL.accent },
     { lbl:'Regiones impactadas', val:st.regionCount, dec:0, color:PAL.accent }
@@ -940,12 +953,14 @@ function renderWorklist(rows){
   document.getElementById('piiToggleCrit').onchange = e=>{ state.showPiiCrit = e.target.checked; renderWorklist(filteredRows()); };
   const showPii = state.showPiiCrit;
   if(!c.dias){ document.getElementById('worklist').innerHTML = '<div class="placeholder">No hay columna de días en barrera para priorizar.</div>'; return; }
-  const sorted = rows.slice().sort((a,b)=> (Number(b[c.dias])||0) - (Number(a[c.dias])||0)).slice(0,15);
-  if(!sorted.length){ document.getElementById('worklist').innerHTML = '<div class="placeholder">Sin casos para los filtros actuales.</div>'; return; }
+  const urgentes = rows.filter(r=> (Number(r[c.dias])||0) > 20);
+  const sorted = urgentes.slice().sort((a,b)=> (Number(b[c.dias])||0) - (Number(a[c.dias])||0)).slice(0,30);
+  if(!sorted.length){ document.getElementById('worklist').innerHTML = '<div class="placeholder">Sin casos urgentes (>20 días) para los filtros actuales.</div>'; return; }
   const cols = [
     c.marca && {h:'Marca', f:r=>displayVal(r[c.marca])},
     c.nombrePaciente && {h:'Paciente', f:r=> showPii? displayVal(r[c.nombrePaciente]) : maskName(r[c.nombrePaciente])},
     c.eps && {h:'EPS', f:r=>displayVal(r[c.eps])},
+    c.ips && {h:'Op. Logístico', f:r=>displayVal(r[c.ips])},
     c.region && {h:'Región', f:r=>displayVal(r[c.region])},
     c.motivo && {h:'Motivo', f:r=>displayVal(r[c.motivo])},
     c.area && {h:'Área', f:r=>displayVal(r[c.area])},
@@ -960,7 +975,7 @@ function renderWorklist(rows){
       const v = cl.f(r);
       if(cl.num){
         const d = Number(v)||0;
-        const sev = d>60 ? 'sev-high' : d>30 ? 'sev-mid' : '';
+        const sev = d>30 ? 'sev-high' : d>20 ? 'sev-mid' : '';
         html += `<td class="${sev}">${d}</td>`;
       } else if(cl.raw){
         html += `<td>${v}</td>`;

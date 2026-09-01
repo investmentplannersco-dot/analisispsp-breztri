@@ -210,15 +210,12 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
   .chart { height: 260px !important; }
   .chart.tall { height: 300px !important; }
 
-  /* ocultar secciones de graficos intermedios en PDF — solo resumen + detalle */
+  /* PDF: ocultar secciones no deseadas — se muestran resumen, comparación por área y tabla filtrada */
   #portfolioSection,
-  #portfolioSection + .section-label,
-  #portfolioSection + .section-label + .grid,
-  #portfolioSection + .section-label + .grid + .section-label,
-  #portfolioSection + .section-label + .grid + .section-label + .grid,
-  #portfolioSection + .section-label + .grid + .section-label + .grid + .section-label,
-  #portfolioSection + .section-label + .grid + .section-label + .grid + .section-label + .grid,
-  #trendGrid, #trendGrid + .section-label { display: none !important; }
+  #geoLabel, #geoGrid,
+  #clinicaLabel, #clinicaGrid,
+  #tendenciaLabel, #trendGrid,
+  #worklistLabel, #worklistCard { display: none !important; }
 
   /* texto negro en toda la página impresa */
   * { color: #000000 !important; }
@@ -297,32 +294,32 @@ footer{max-width:1500px;margin:0 auto;padding:10px 22px 40px;color:var(--dim-2);
       </div>
     </div>
 
-    <div class="section-label"><span>Distribución geográfica y aseguradoras</span></div>
-    <div class="grid">
+    <div class="section-label" id="geoLabel"><span>Distribución geográfica y aseguradoras</span></div>
+    <div class="grid" id="geoGrid">
       <div class="card fade"><h3>Casos por región</h3><p class="cap" id="regCap"></p><div id="reg" class="chart"></div></div>
       <div class="card fade"><h3>Top 10 aseguradoras (EPS)</h3><p class="cap" id="epsCap"></p><div id="eps" class="chart"></div></div>
     </div>
 
-    <div class="section-label"><span>Estado clínico y causas raíz</span></div>
-    <div class="grid">
+    <div class="section-label" id="clinicaLabel"><span>Estado clínico y causas raíz</span></div>
+    <div class="grid" id="clinicaGrid">
       <div class="card fade"><h3>Estado del paciente</h3><p class="cap" id="estCap"></p><div id="estado" class="chart"></div></div>
       <div class="card fade"><h3>Tipo de barrera → motivo</h3><p class="cap" id="sunCap"></p><div id="sun" class="chart"></div></div>
       <div class="card span2 fade"><h3>Cruce EPS × Motivo de barrera</h3><p class="cap" id="heatCap"></p><div id="heat" class="chart tall"></div></div>
     </div>
 
-    <div class="section-label"><span>Carga operativa y antigüedad</span></div>
-    <div class="grid">
+    <div class="section-label" id="operativaLabel"><span>Comparación por área</span></div>
+    <div class="grid" id="operativaGrid">
       <div class="card span2 fade"><h3>Antigüedad de barreras por área responsable</h3><p class="cap" id="agingCap"></p><div id="aging" class="chart tall"></div></div>
       <div class="card span2 fade"><h3>Carga por responsable</h3><p class="cap" id="loadCap"></p><div id="load" class="chart tall"></div></div>
     </div>
 
-    <div class="section-label"><span>Tendencia semanal</span></div>
+    <div class="section-label" id="tendenciaLabel"><span>Tendencia semanal</span></div>
     <div class="grid" id="trendGrid">
       <div class="card span2 fade" id="trendCard"><h3>Evolución entre cargas</h3><p class="cap">Se construye automáticamente cada vez que subes un nuevo reporte</p><div id="trend" class="chart"></div></div>
     </div>
 
-    <div class="section-label"><span>Casos críticos a gestionar</span></div>
-    <div class="card fade">
+    <div class="section-label" id="worklistLabel"><span>Casos críticos a gestionar</span></div>
+    <div class="card fade" id="worklistCard">
       <div class="toolbar">
         <p class="cap" style="margin:0">Casos urgentes (&gt;20 días) — riesgo de suspensión, ordenados por antigüedad</p>
         <label class="toggle"><input type="checkbox" id="piiToggleCrit"/> Mostrar datos sensibles del paciente</label>
